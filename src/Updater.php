@@ -3,6 +3,8 @@ namespace Shazzad\GithubPlugin;
 
 use WP_Error;
 
+if ( ! class_exists( 'Updater' ) ) :
+
 /**
  * WordPress Plugin Updater From Github Repo
  */
@@ -544,3 +546,5 @@ class Updater {
 		return $result;
 	}
 }
+
+endif;
