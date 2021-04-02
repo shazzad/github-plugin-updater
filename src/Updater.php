@@ -2,6 +2,7 @@
 namespace Shazzad\GithubPlugin;
 
 use WP_Error;
+use Parsedown;
 
 if ( ! class_exists( 'Updater' ) ) :
 
@@ -113,6 +114,9 @@ class Updater {
 		if ( $this->is_ready_to_use_updater() ) {
 			$this->initialize_updater();
 		}
+
+		// Test.
+		// $this->get_readme();
 	}
 
 	/**
@@ -497,6 +501,12 @@ class Updater {
 	}
 
 	private function plugin_api_data() {
+
+		$description = $this->get_readme( true );
+		if ( is_wp_error( $description ) || empty( $description ) ) {
+			$description = $this->plugin["Description"];
+		}
+
 		return array(
 			'name'				=> $this->plugin["Name"],
 			'slug'				=> $this->basename,
@@ -512,7 +522,7 @@ class Updater {
 			'homepage'			=> $this->plugin["PluginURI"],
 			'short_description' => $this->plugin["Description"],
 			'sections'			=> array(
-				'Description'	=> $this->plugin["Description"],
+				'Description'	=> $description,
 				'changelog'		=> $this->get_latest_version_changelog(),
 			),
 			'download_link'		=> $this->get_latest_version_download_url()
@@ -544,6 +554,38 @@ class Updater {
 		}
 
 		return $result;
+	}
+
+	protected function get_readme( $html = false ) {
+		$request_uri = sprintf( 'https://api.github.com/repos/%s/readme', $this->repo_path );
+
+		$args = array();
+		if ( $this->access_token ) {
+			$args['headers']['Authorization'] = "token {$this->access_token}";
+		}
+
+		$args['headers']['Accept'] = 'application/vnd.github.v3.raw';
+
+		$response      = wp_remote_get( $request_uri, $args );
+		$body          = wp_remote_retrieve_body( $response );
+		$response_code = wp_remote_retrieve_response_code( $response );
+
+		if ( 200 !== $response_code ) {
+			return new WP_Error( 'readme_not_found', __( 'Readme not available' ) );
+		}
+
+		if ( $html ) {
+			$parsedown = new Parsedown();
+			$body = $parsedown->text( $body );
+		}
+
+		return $body;
+
+		// $parsedown = new Parsedown();
+		// echo '<pre>';
+		// print_r( $parsedown->text( $body ) );
+		// echo '</pre>';
+		// exit;
 	}
 }
 

@@ -1,10 +1,12 @@
 {
 	"name": "shazzad/github-plugin-updater",
 	"description": "Helper library to implement wordpress plugin update from github.",
-	"version": "1.0.1",
 	"autoload": {
 		"psr-4": {
 			"Shazzad\\GithubPlugin\\": "src/"
 		}
+	},
+	"require": {
+		"erusev/parsedown": "^1.7"
 	}
 }
