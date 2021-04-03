@@ -10,6 +10,8 @@ use Parsedown;
 class Api {
 
 	const GITHUB_API_URL = 'https://api.github.com';
+	const CHANGELOG_FILE_NAME = 'CHANGELOG.md';
+	const UPDATER_FILE_NAME = 'UPDATER.md';
 
 	/**
 	 * @var string Github api access token.
@@ -69,7 +71,7 @@ class Api {
 
 			foreach ( $data as $release ) {
 				if ( ! empty( $release['assets'] ) && count( $release['assets'] ) > 0 ) {
-					return $this->sanitize_release_data( $release );
+					return $release;
 				}
 			}
 		}
@@ -106,6 +108,41 @@ class Api {
 		// $parsedown = new Parsedown();
 		// echo '<pre>';
 		// print_r( $parsedown->text( $body ) );
+		// echo '</pre>';
+		// exit;
+	}
+
+	public function get_changelog() {
+		$request_uri = self::GITHUB_API_URL . '/repos/' . $this->repo_path .'/contents/' . self::CHANGELOG_FILE_NAME;
+
+		$args = array(
+			'headers' => array(
+				'Accept' => 'application/vnd.github.v3.raw'
+			)
+		);
+
+		if ( $this->access_token ) {
+			$args['headers']['Authorization'] = "token {$this->access_token}";
+		}
+
+		$response      = wp_remote_get( $request_uri, $args );
+		$body          = wp_remote_retrieve_body( $response );
+		$response_code = wp_remote_retrieve_response_code( $response );
+
+		// echo '<pre>';
+		// print_r( $body );
+		// echo '</pre>';
+		// exit;
+
+		if ( 200 !== $response_code ) {
+			return new WP_Error( 'readme_not_found', __( 'Readme not available' ) );
+		}
+
+		return $body;
+
+		// $parsedown = new Parsedown();
+		// echo '<pre>';
+		// print_r( $response );
 		// echo '</pre>';
 		// exit;
 	}

@@ -2,6 +2,7 @@
 namespace Shazzad\GithubPlugin;
 
 use WP_Error;
+use Parsedown;
 
 /**
  * WordPress Plugin Updater From Github Repo
@@ -16,12 +17,17 @@ class Updater {
 	/**
 	 * @var array WordPress plugin data.
 	 */
-	private $plugin;
+	private $plugin = null;
 
 	/**
 	 * @var string plugin basename.
 	 */
-	private $basename;
+	private $basename = null;
+
+	/**
+	 * @var string plugin basename.
+	 */
+	private $slug = null;
 
 	/**
 	 * @var boolean Is plugin active.
@@ -79,7 +85,7 @@ class Updater {
 	private $api;
 
 	/**
-	 * Bootstrap updater.
+	 * Construct updater.
 	 */
 	public function __construct( $config = array() ) {
 		if ( ! isset( $config['file'], $config['owner'], $config['repo'] ) ) {
@@ -130,10 +136,6 @@ class Updater {
 		if ( $this->is_ready_to_use_updater() ) {
 			$this->initialize_updater();
 		}
-
-		// Test.
-		
-		// $this->get_readme();
 	}
 
 	/**
@@ -269,6 +271,8 @@ class Updater {
 		);
 
 		global $pagenow;
+
+		// If user is on general settings page and access token is available.
 		if ( 'options-general.php' === $pagenow && ! empty( $this->access_token ) ) {
 			static $access_token_checked;
 			if ( ! isset( $access_token_checked ) ) {
@@ -280,6 +284,7 @@ class Updater {
 			}
 
 			$access_token_checked[] = $this->owner;
+
 			$this->fetch_latest_release();
 		}
 	}
@@ -288,21 +293,22 @@ class Updater {
 	 * HTML for extra settings
 	 */
 	public function fields_html() {
-		$value = get_option( $this->prefixed_option( 'github_access_token' ), '' );
-
 		printf( 
 			'<input class="regular-text" type="text" id="%s" name="%s" value="%s" />',
 			$this->prefixed_option( 'github_access_token_id' ),
 			$this->prefixed_option( 'github_access_token' ),
-			esc_attr( $value )
+			esc_attr( $this->access_token )
 		);
 
 		echo '<p class="description">' . sprintf( 
 			__( 'This token will be used to fetch update for %s\'s plugins from github' ),
-			$this->owner
+			$this->owner_name
 		) . '</p>';
 	}
 
+	/**
+	 * Register updater hooks/features
+	 */
 	private function initialize_updater() {
 		add_action( 'admin_init', array( $this, 'set_plugin_properties' ) );
 		add_filter( 'pre_set_site_transient_update_plugins', array( $this, 'transient_update_plugins' ) );
@@ -311,49 +317,27 @@ class Updater {
 		add_filter( 'upgrader_pre_download', array( $this, 'upgrader_pre_download' ) );
 	}
 
+	/**
+	 * Filter http request args to add accept and authorization header.
+	 */
 	public function upgrader_pre_download( $reply ) {
-		// Add accept header to http request
+		// Add Accept & Authorization header to http request.
+		// Github won't prompt zip file download without proper Accept header.
 		add_filter( 'http_request_args', array( $this, 'http_request_args' ), 15, 2 );
 
 		return $reply;
 	}
 
+	/**
+	 * Setup plugin information
+	 */
 	public function set_plugin_properties() {
-		$this->plugin	= get_plugin_data( $this->file );
-		$this->basename = plugin_basename( $this->file );
-		$this->slug     = current( explode( '/' , $this->basename ) );
-		$this->active	= is_plugin_active( $this->basename );
-
-		// $this->fetch_latest_release();
-
-		// echo '<pre>';
-		// print_r( $this->latest_release );
-		// exit;
-
-		// if ( ! function_exists( 'download_url' ) ) {
-		// 	require_once ABSPATH . 'wp-admin/includes/file.php';
-		// }
-
-		// add_filter( 'http_request_args', array( $this, 'http_request_args' ), 15, 2 );
-
-		// // Now you can use it!
-		// $file_url = $this->latest_release->get_download_url();
-		// $tmp_file = download_url( $file_url );
-
-		// print_r( $tmp_file );
-
-		// if ( ! is_wp_error( $tmp_file ) ) {
-		// 	// Sets file final destination.
-		// 	$filepath = 'C:\Users\sajib\Desktop\test/myfile.zip';
-		// 	// Copies the file to the final destination and deletes temporary file.
-		// 	copy( $tmp_file, $filepath );
-		// 	@unlink( $tmp_file );
-		// }
-		// exit;
-
-		// echo '<pre>';
-		// print_r( $this->plugin );
-		// exit;
+		if ( is_null( $this->plugin ) ) {
+			$this->plugin	= get_plugin_data( $this->file );
+			$this->basename = plugin_basename( $this->file );
+			$this->slug     = current( explode( '/' , $this->basename ) );
+			$this->active	= is_plugin_active( $this->basename );
+		}
 	}
 
 	/**
@@ -371,20 +355,22 @@ class Updater {
 				)
 			);
 
-			// echo '<pre>';
-			// print_r( $url );
-			// print_r( $args );
-			// exit;
-
 			remove_filter( 'http_request_args', array( $this, 'http_request_args' ), 15, 2 );
 		}
 
 		return $args;
 	}
 
+	/**
+	 * Load latest release data from cache/api
+	 */
 	private function fetch_latest_release() {
 		if ( false !== $this->get_latest_release_cache() ) {
 			$this->latest_release->set_data( $this->get_latest_release_cache() );
+
+			// echo '<pre>';
+			// print_r( $this->latest_release );
+			// exit;
 			return;
 		}
 
@@ -402,21 +388,37 @@ class Updater {
 
 			} else {
 
-				$this->latest_release = new Release( $release_data );
-				$this->save_latest_release_cache( $release_data );
+				$this->latest_release->parse_data( $release_data );
+
+				if ( ! $this->latest_release->requires || $this->latest_release->requires_php || $this->latest_release->tested ) {
+					$content = $this->api->get_readme();
+					if ( ! is_wp_error( $content ) && ! empty( $content ) ) {
+						$meta = $this->parse_requirements_from_markdown( $content );
+
+						foreach ( array( 'tested', 'requires', 'requires_php' ) as $field ) {
+							if ( ! empty( $meta[$field] ) ) {
+								$this->latest_release->{$field} = $meta[ $field ];
+							}
+						}
+					}
+				}
+
+				$this->save_latest_release_cache( $this->latest_release->get_data() );
 				$this->delete_access_token_error();
 			}
 	    }
 	}
 
-
 	public function transient_update_plugins( $transient ) {
 		if ( property_exists( $transient, 'checked') && ! empty( $transient->checked ) ) {
+
 			$this->fetch_latest_release();
 
 			if ( ! $this->latest_release->available() ) {
 				return $transient;
 			}
+
+			$this->set_plugin_properties();
 
 			if ( version_compare( $this->latest_release->get_version(), $this->plugin['Version'], 'gt' ) ) {
 				$transient->response[ $this->basename ] = (object) $this->plugin_update_available_response_data();
@@ -452,7 +454,7 @@ class Updater {
 		return array(
 			'url'         => $this->plugin["PluginURI"],
 			'slug' 	      => $this->slug,
-			'package'     => $this->latest_release->get_download_url(),
+			'package'     => $this->latest_release->download_url,
 			'new_version' => $this->plugin["Version"]
 		);
 	}
@@ -461,40 +463,132 @@ class Updater {
 		return array(
 			'url'          => $this->plugin["PluginURI"],
 			'slug' 	       => $this->slug,
-			'package'      => $this->latest_release->get_download_url(),
-			'new_version'  => $this->latest_release->get_version(),
-			'requires'	   => $this->latest_release->get_requires(),
-			'tested'	   => $this->latest_release->get_tested(),
-			'requires_php' => $this->latest_release->get_requires_php()
+			'package'      => $this->latest_release->download_url,
+			'new_version'  => $this->latest_release->version,
+			'tested'	   => $this->latest_release->tested,
+			'requires'	   => $this->latest_release->requires,
+			'requires_php' => $this->latest_release->requires_php
 		);
 	}
 
 	private function plugin_api_data() {
-		$description = $this->api->get_readme( true );
-		if ( is_wp_error( $description ) || empty( $description ) ) {
-			$description = $this->plugin["Description"];
-		}
-
 		return array(
 			'name'				=> $this->plugin["Name"],
 			'slug'				=> $this->basename,
-			'requires'			=> $this->latest_release->get_requires(),
-			'tested'			=> $this->latest_release->get_tested(),
-			'requires_php'		=> $this->latest_release->get_requires_php(),
+			'tested'	        => $this->latest_release->tested,
+			'requires'	        => $this->latest_release->requires,
+			'requires_php'      => $this->latest_release->requires_php,
 			'rating'			=> '',
 			'num_ratings'		=> '',
-			'downloaded'		=> $this->latest_release->get_download_count(),
-			'version'			=> $this->latest_release->get_version(),
-			'author'			=> sprintf( '<a href="%s">%s</a>', $this->plugin["AuthorURI"], $this->plugin["AuthorName"] ),
+			'downloaded'		=> $this->latest_release->download_count,
+			'version'			=> $this->latest_release->version,
+			'author'			=> sprintf( 
+				'<a href="%s">%s</a>', 
+				$this->plugin["AuthorURI"], 
+				$this->plugin["AuthorName"]
+			),
 			'last_updated'		=> $this->latest_release->get_date(),
 			'homepage'			=> $this->plugin["PluginURI"],
 			'short_description' => $this->plugin["Description"],
 			'sections'			=> array(
-				'Description'	=> $description,
-				'changelog'		=> $this->latest_release->get_changelog(),
+				'description'	=> $this->get_description(),
+				'changelog'		=> $this->get_changelog(),
 			),
-			'download_link'		=> $this->latest_release->get_download_url()
+			'download_link'		=> $this->latest_release->download_url
 		);
+	}
+
+	private function parse_requirements_from_markdown( $content ) {
+		$lines = explode( "\n", $content );
+
+		$meta = array();
+		$meta_found = false;
+
+		foreach ( $lines as $line ) {
+
+			if ( '# Requirements' === $line || '## Requirements' === $line || '### Requirements' === $line ) {
+				$meta_found = true;
+				continue;
+			}
+
+			if ( ! $meta_found ) {
+				continue;
+			}
+
+			if ( 0 === strpos( $line, '#' ) ) {
+				break;
+			}
+
+			if ( false !== strpos( $line, ':' ) ) {
+				$parts = explode( ":", $line );
+				if ( count( $parts ) === 2 ) {
+					$meta[ $this->sanitize_meta_name( $parts[0] ) ] = $this->sanitize_meta_value( $parts[1] );
+				}
+			}
+		}
+
+		return $meta;
+	}
+
+	private function sanitize_meta_name( $name ) {
+		$name = ltrim( $name, '*' );
+		$name = strtolower( $name );
+		$name = trim( $name );
+		$name = preg_replace( '/[^a-z0-9-.]/', '_', $name );
+
+		if ( 'wordpress' === $name ) {
+			$name = 'requires';
+		} elseif ( 'php' === $name ) {
+			$name = 'requires_php';
+		}
+
+		return $name;
+	}
+
+	private function sanitize_meta_value( $value ) {
+		return trim( $value );
+	}
+
+
+	private function get_changelog() {
+		$content = $this->api->get_changelog();
+
+		if ( is_wp_error( $content ) || empty( $content ) ) {
+			if ( ! empty( $this->latest_release->body ) ) {
+				$content = $this->latest_release->body;
+			} else {
+				$content = __( 'Minor Updates' );
+			}
+
+		} else {
+			$parsedown = new Parsedown();
+			$content = $parsedown->text( $content );
+		}
+
+		return $content;
+	}
+
+	private function get_description() {
+		$content = $this->api->get_readme();
+
+		if ( is_wp_error( $content ) || empty( $content ) ) {
+			$content = $this->plugin["Description"];
+
+		} else {
+			$parsedown = new Parsedown();
+			$content = $parsedown->text( $content );
+
+			// Replace all h1, h2 with h4
+			$content = preg_replace( '/<(h1|h2|h3)>/', '<h4>', $content );
+			$content = preg_replace( '/<\/(h1|h2|h3)>/', '</h4>', $content );
+
+			// echo '<pre>';
+			// print_r( $content );
+			// echo '</pre>';
+			// exit;
+		}
+
+		return $content;
 	}
 
 	/**
