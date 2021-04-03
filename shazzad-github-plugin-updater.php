@@ -14,14 +14,14 @@
  * @package Shazzad\GithubPluginUpdater
  */
 
-include_once __DIR__ . '/vendor/autoload.php';
+// include_once __DIR__ . '/vendor/autoload.php';
 
-new \Shazzad\GithubPlugin\Updater( array(
-	'file'         => __FILE__,
-	'owner'        => 'shazzad',
-	'repo'		   => 'github-plugin-updater',
+// new \Shazzad\GithubPlugin\Updater( array(
+// 	'file'         => __FILE__,
+// 	'owner'        => 'shazzad',
+// 	'repo'		   => 'github-plugin-updater',
 
-	// Folloing only required for private repo
-	'private_repo' => false,
-	'owner_name'   => 'Shazzad'
-) );
+// 	// Folloing only required for private repo
+// 	'private_repo' => false,
+// 	'owner_name'   => 'Shazzad'
+// ) );

@@ -54,6 +54,11 @@ class Updater {
 	private $owner;
 
 	/**
+	 * @var string Repo name.
+	 */
+	private $repo;
+
+	/**
 	 * @var string Repo owner/organization human name, used for access key settings.
 	 */
 	private $owner_name;
@@ -127,6 +132,7 @@ class Updater {
 		}
 
 		// Test.
+		
 		// $this->get_readme();
 	}
 
@@ -149,10 +155,10 @@ class Updater {
 	}
 
 	/**
-	 * Prefix option name with current plugin slug
+	 * Prefix option name with plugin slug
 	 */
 	private function prefixed_plugin_option( $option ) {
-		return $this->prefixed_option( "{$option}_" . str_replace( '/', '_', $this->repo_path ) );
+		return $this->prefixed_option( "{$option}_{$this->owner}_{$this->repo}" );
 	}
 
 	/**
@@ -178,7 +184,7 @@ class Updater {
 	 * Display admin notice related to access token.
 	 */
 	public function access_token_admin_notices() {
-		if ( ! $this->private_repo || ! current_user_can( 'manage_options' ) ) {
+		if ( ! $this->private_repo || ! current_user_can( 'install_plugins' ) ) {
 			return;
 		}
 
@@ -307,7 +313,7 @@ class Updater {
 
 	public function upgrader_pre_download( $reply ) {
 		// Add accept header to http request
-		add_filter( 'http_request_args', array( $this, 'download_package' ), 15, 2 );
+		add_filter( 'http_request_args', array( $this, 'http_request_args' ), 15, 2 );
 
 		return $reply;
 	}
@@ -315,15 +321,65 @@ class Updater {
 	public function set_plugin_properties() {
 		$this->plugin	= get_plugin_data( $this->file );
 		$this->basename = plugin_basename( $this->file );
+		$this->slug     = current( explode( '/' , $this->basename ) );
 		$this->active	= is_plugin_active( $this->basename );
 
-		// echo '<pre>';
 		// $this->fetch_latest_release();
+
+		// echo '<pre>';
 		// print_r( $this->latest_release );
 		// exit;
+
+		// if ( ! function_exists( 'download_url' ) ) {
+		// 	require_once ABSPATH . 'wp-admin/includes/file.php';
+		// }
+
+		// add_filter( 'http_request_args', array( $this, 'http_request_args' ), 15, 2 );
+
+		// // Now you can use it!
+		// $file_url = $this->latest_release->get_download_url();
+		// $tmp_file = download_url( $file_url );
+
+		// print_r( $tmp_file );
+
+		// if ( ! is_wp_error( $tmp_file ) ) {
+		// 	// Sets file final destination.
+		// 	$filepath = 'C:\Users\sajib\Desktop\test/myfile.zip';
+		// 	// Copies the file to the final destination and deletes temporary file.
+		// 	copy( $tmp_file, $filepath );
+		// 	@unlink( $tmp_file );
+		// }
+		// exit;
+
 		// echo '<pre>';
 		// print_r( $this->plugin );
 		// exit;
+	}
+
+	/**
+	 * Filter download request.
+	 */
+	public function http_request_args( $args, $url ) {
+		if ( null !== $args['filename'] && $url === $this->latest_release->get_download_url() ) {
+			$args = array_merge(
+				$args,
+				array(
+					"headers" => array(
+						"Accept" => "application/octet-stream",
+						"Authorization" => "token {$this->access_token}"
+					)
+				)
+			);
+
+			// echo '<pre>';
+			// print_r( $url );
+			// print_r( $args );
+			// exit;
+
+			remove_filter( 'http_request_args', array( $this, 'http_request_args' ), 15, 2 );
+		}
+
+		return $args;
 	}
 
 	private function fetch_latest_release() {
@@ -353,14 +409,6 @@ class Updater {
 	    }
 	}
 
-	public function get_latest_version_download_url() {
-		if ( $this->access_token ) {
-			return add_query_arg( 'access_token', $this->access_token, $this->latest_release->get_download_url() );
-		}
-
-		return $this->latest_release->get_download_url();
-	}
-
 
 	public function transient_update_plugins( $transient ) {
 		if ( property_exists( $transient, 'checked') && ! empty( $transient->checked ) ) {
@@ -385,7 +433,7 @@ class Updater {
 	public function plugins_api_data( $result, $action, $args ) {
 		if ( ! empty( $args->slug ) ) {
 
-			if ( $args->slug == current( explode( '/' , $this->basename ) ) ) {
+			if ( $args->slug == $this->slug ) {
 
 				$this->fetch_latest_release();
 
@@ -403,8 +451,8 @@ class Updater {
 	private function plugin_no_update_response_data() {
 		return array(
 			'url'         => $this->plugin["PluginURI"],
-			'slug' 	      => current( explode('/', $this->basename ) ),
-			'package'     => $this->get_latest_version_download_url(),
+			'slug' 	      => $this->slug,
+			'package'     => $this->latest_release->get_download_url(),
 			'new_version' => $this->plugin["Version"]
 		);
 	}
@@ -412,8 +460,8 @@ class Updater {
 	private function plugin_update_available_response_data() {
 		return array(
 			'url'          => $this->plugin["PluginURI"],
-			'slug' 	       => current( explode('/', $this->basename ) ),
-			'package'      => $this->get_latest_version_download_url(),
+			'slug' 	       => $this->slug,
+			'package'      => $this->latest_release->get_download_url(),
 			'new_version'  => $this->latest_release->get_version(),
 			'requires'	   => $this->latest_release->get_requires(),
 			'tested'	   => $this->latest_release->get_tested(),
@@ -445,18 +493,8 @@ class Updater {
 				'Description'	=> $description,
 				'changelog'		=> $this->latest_release->get_changelog(),
 			),
-			'download_link'		=> $this->get_latest_version_download_url()
+			'download_link'		=> $this->latest_release->get_download_url()
 		);
-	}
-
-	public function download_package( $args, $url ) {
-		if ( null !== $args['filename'] ) {
-			$args = array_merge( $args, array( "headers" => array( "Accept" => "application/octet-stream" ) ) );
-		}
-
-		remove_filter( 'http_request_args', array( $this, 'download_package' ), 15, 2 );
-
-		return $args;
 	}
 
 	/**
