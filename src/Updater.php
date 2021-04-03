@@ -12,77 +12,77 @@ class Updater {
 	/**
 	 * @var string Plugin base file.
 	 */
-	private $file;
+	public $file;
 
 	/**
 	 * @var array WordPress plugin data.
 	 */
-	private $plugin = null;
+	public $plugin = null;
 
 	/**
 	 * @var string plugin basename.
 	 */
-	private $basename = null;
+	public $basename = null;
 
 	/**
 	 * @var string plugin basename.
 	 */
-	private $slug = null;
+	public $slug = null;
 
 	/**
 	 * @var boolean Is plugin active.
 	 */
-	private $active = false;
+	public $active = false;
 
 	/**
-	 * @var boolean Is private repo.
+	 * @var boolean Is public repo.
 	 */
-	private $private_repo = false;
+	public $private_repo = false;
 
 	/**
 	 * @var string Github api access token.
 	 */
-	private $access_token;
+	public $access_token;
 
 	/**
 	 * @var string Github repo path.
 	 */
-	private $repo_path;
+	public $repo_path;
 
 	/**
 	 * @var number Cache period in seconds
 	 */
-	private $cache_period = 60;
+	public $cache_period = 60;
 
 	/**
 	 * @var string Repo owner/organization name.
 	 */
-	private $owner;
+	public $owner;
 
 	/**
 	 * @var string Repo name.
 	 */
-	private $repo;
+	public $repo;
 
 	/**
 	 * @var string Repo owner/organization human name, used for access key settings.
 	 */
-	private $owner_name;
+	public $owner_name;
 
 	/**
 	 * @var string Option prefix to use while storing data on wp options table.
 	 */
-	private $option_prefix;
+	public $option_prefix;
 
 	/**
 	 * @var object Github latest release.
 	 */
-	private $latest_release;
+	public $latest_release;
 
 	/**
 	 * @var object Github Api.
 	 */
-	private $api;
+	public $api;
 
 	/**
 	 * Construct updater.
@@ -98,12 +98,12 @@ class Updater {
 		$this->repo      = $config['repo'];
 		$this->repo_path = $this->owner . '/' . $this->repo;
 
-		// Is private
+		// Is public
 		if ( array_key_exists( 'private_repo', $config ) ) {
 			$this->private_repo = (bool) $config['private_repo'];
 		}
 
-		// Parse additional settings for private repo
+		// Parse additional settings for public repo
 		if ( $this->private_repo ) {
 			if ( ! empty( $config['owner_name'] ) ) {
 				$this->owner_name = $config['owner_name'];
@@ -120,190 +120,23 @@ class Updater {
 			$this->access_token = get_option( $this->prefixed_option( 'github_access_token' ) );
 
 			// Initialize settings panel for private repo.
-			$this->initialize_settings();
+			new AdminSettings( $this );
 		}
 
+		// Github api
 		$this->api = new Api();
 		$this->api->set_repo_path( $this->repo_path );
-
 		if ( $this->access_token ) {
 			$this->api->set_access_token( $this->access_token );
 		}
 
+		// Latest release
 		$this->latest_release = new Release();
 
 		// Initialize updater.
 		if ( $this->is_ready_to_use_updater() ) {
 			$this->initialize_updater();
 		}
-	}
-
-	/**
-	 * Private repo will need stored access token
-	 */
-	private function is_ready_to_use_updater() {
-		if ( $this->private_repo && empty( $this->access_token ) ) {
-			return false;
-		}
-
-		return true;
-	}
-
-	/**
-	 * Prefix option with owner/option_prefix
-	 */
-	private function prefixed_option( $option ) {
-		return $this->option_prefix . $option;
-	}
-
-	/**
-	 * Prefix option name with plugin slug
-	 */
-	private function prefixed_plugin_option( $option ) {
-		return $this->prefixed_option( "{$option}_{$this->owner}_{$this->repo}" );
-	}
-
-	/**
-	 * Initialize settings option for private repo plugin.
-	 */
-	private function initialize_settings() {
-		// Delete access token error after option is updated.
-		add_action( 'update_option_' . $this->prefixed_option( 'github_access_token' ), array( $this, 'after_access_token_updated' ) );
-		add_action( 'admin_init', array( $this , 'register_setting_field' ) );
-		add_action( 'admin_notices', array( $this, 'access_token_admin_notices' ) );
-	}
-
-	/**
-	 * After access token is updated, clear stored error & latest release transient data.
-	 */
-	public function after_access_token_updated() {
-		$this->delete_access_token_error();
-		$this->delete_latest_release_cache();
-		$this->latest_release->set_data( array() );
-	}
-
-	/**
-	 * Display admin notice related to access token.
-	 */
-	public function access_token_admin_notices() {
-		if ( ! $this->private_repo || ! current_user_can( 'install_plugins' ) ) {
-			return;
-		}
-
-		static $notice_shown;
-		if ( ! isset( $notice_shown ) ) {
-			$notice_shown = array();
-		}
-
-		if ( is_array( $notice_shown ) && in_array( $this->owner, $notice_shown ) ) {
-			return;
-		}
-
-		if ( empty( $this->access_token ) ) {
-			echo "<div class='notice notice-error is-dismissible'> \n";
-			echo "<p><strong>";
-			printf( 
-				__( '%s\'s <a href="%s#%s">github access token</a> is required to receive automatic plugin updates.' ), 
-				$this->owner_name,
-				admin_url( 'options-general.php' ),
-				$this->prefixed_option( 'github_access_token_id' )
-			);
-			echo "</strong></p>";
-			echo "</div> \n";
-
-			$notice_shown[] = $this->owner;
-		}
-
-		if ( $this->get_access_token_error() ) {
-			echo "<div id='". $this->prefixed_option( 'github_access_token' ) ."' class='notice notice-error is-dismissible'> \n";
-			echo "<p>" . sprintf( 
-				__( '<strong>%s\'s github access token error:</strong> %s <a href="%s#%s">update here</a>' ), 
-				$this->owner_name,
-				$this->get_access_token_error(),
-				admin_url( 'options-general.php' ),
-				$this->prefixed_option( 'github_access_token_id' )
-			) . "</p>";
-			echo "</div> \n";
-
-			$notice_shown[] = $this->owner;
-		}
-	}
-
-	private function get_access_token_error() {
-		return get_option( $this->prefixed_option( 'github_access_token_error' ) );
-	}
-
-	private function save_access_token_error( $error ) {
-		update_option( $this->prefixed_option( 'github_access_token_error' ), $error );
-	}
-
-	private function delete_access_token_error() {
-		delete_option( $this->prefixed_option( 'github_access_token_error' ) );
-	}
-
-	private function get_latest_release_cache() {
-		return get_transient( $this->prefixed_plugin_option( 'latest_release' ) );
-	}
-
-	private function save_latest_release_cache( $data ) {
-		set_transient( $this->prefixed_plugin_option( 'latest_release' ), $data, $this->cache_period );
-	}
-
-	private function delete_latest_release_cache() {
-		delete_transient( $this->prefixed_plugin_option( 'latest_release' ) );
-	}
-
-	/**
-	 * Register settings field for access token.
-	 */
-	public function register_setting_field() {
-		register_setting( 
-			'general',
-			$this->prefixed_option( 'github_access_token' ),
-			'esc_attr'
-		);
-
-		add_settings_field(
-			$this->prefixed_option( 'github_access_token_id' ),
-			'<label for="'. $this->prefixed_option( 'github_access_token_id' ) .'">' . sprintf( __( '%s\'s Plugin Github Access Token' ), $this->owner_name ) . '</label>',
-			array( $this, 'fields_html' ),
-			'general'
-		);
-
-		global $pagenow;
-
-		// If user is on general settings page and access token is available.
-		if ( 'options-general.php' === $pagenow && ! empty( $this->access_token ) ) {
-			static $access_token_checked;
-			if ( ! isset( $access_token_checked ) ) {
-				$access_token_checked = array();
-			}
-
-			if ( is_array( $access_token_checked ) && in_array( $this->owner, $access_token_checked ) ) {
-				return;
-			}
-
-			$access_token_checked[] = $this->owner;
-
-			$this->fetch_latest_release();
-		}
-	}
-
-	/**
-	 * HTML for extra settings
-	 */
-	public function fields_html() {
-		printf( 
-			'<input class="regular-text" type="text" id="%s" name="%s" value="%s" />',
-			$this->prefixed_option( 'github_access_token_id' ),
-			$this->prefixed_option( 'github_access_token' ),
-			esc_attr( $this->access_token )
-		);
-
-		echo '<p class="description">' . sprintf( 
-			__( 'This token will be used to fetch update for %s\'s plugins from github' ),
-			$this->owner_name
-		) . '</p>';
 	}
 
 	/**
@@ -329,18 +162,6 @@ class Updater {
 	}
 
 	/**
-	 * Setup plugin information
-	 */
-	public function set_plugin_properties() {
-		if ( is_null( $this->plugin ) ) {
-			$this->plugin	= get_plugin_data( $this->file );
-			$this->basename = plugin_basename( $this->file );
-			$this->slug     = current( explode( '/' , $this->basename ) );
-			$this->active	= is_plugin_active( $this->basename );
-		}
-	}
-
-	/**
 	 * Filter download request.
 	 */
 	public function http_request_args( $args, $url ) {
@@ -349,7 +170,7 @@ class Updater {
 				$args,
 				array(
 					"headers" => array(
-						"Accept" => "application/octet-stream",
+						"Accept"        => "application/octet-stream",
 						"Authorization" => "token {$this->access_token}"
 					)
 				)
@@ -362,51 +183,78 @@ class Updater {
 	}
 
 	/**
+	 * Setup plugin information
+	 */
+	public function set_plugin_properties() {
+		if ( is_null( $this->plugin ) ) {
+			$this->plugin	= get_plugin_data( $this->file );
+			$this->basename = plugin_basename( $this->file );
+			$this->slug     = current( explode( '/' , $this->basename ) );
+			$this->active	= is_plugin_active( $this->basename );
+		}
+	}
+
+	/**
 	 * Load latest release data from cache/api
 	 */
-	private function fetch_latest_release() {
-		if ( false !== $this->get_latest_release_cache() ) {
-			$this->latest_release->set_data( $this->get_latest_release_cache() );
-
-			// echo '<pre>';
-			// print_r( $this->latest_release );
-			// exit;
+	public function fetch_latest_release() {
+		if ( $this->latest_release->available() ) {
 			return;
 		}
 
-		if ( ! $this->latest_release->available() ) {
-	        $release_data = $this->api->get_latest_release();
+		if ( false !== $this->get_latest_release_cache() ) {
+			$this->latest_release->set_data( $this->get_latest_release_cache() );
+			return;
+		}
 
-			if ( is_wp_error( $release_data ) ) {
-				$this->save_access_token_error(
-					sprintf(
-						'%s, code: %s.',
-						$release_data->get_error_message(),
-						$release_data->get_error_code()
-					)
-				);
+		$release_data = $this->api->get_latest_release();
 
-			} else {
+		if ( is_wp_error( $release_data ) ) {
+			$this->save_access_token_error(
+				sprintf(
+					'%s, code: %s.',
+					$release_data->get_error_message(),
+					$release_data->get_error_code()
+				)
+			);
 
-				$this->latest_release->parse_data( $release_data );
+		} else {
 
-				if ( ! $this->latest_release->requires || $this->latest_release->requires_php || $this->latest_release->tested ) {
-					$content = $this->api->get_readme();
-					if ( ! is_wp_error( $content ) && ! empty( $content ) ) {
-						$meta = $this->parse_requirements_from_markdown( $content );
+			$this->latest_release->parse_data( $release_data );
 
-						foreach ( array( 'tested', 'requires', 'requires_php' ) as $field ) {
-							if ( ! empty( $meta[$field] ) ) {
-								$this->latest_release->{$field} = $meta[ $field ];
-							}
+			if ( ! $this->latest_release->requires || $this->latest_release->requires_php || $this->latest_release->tested ) {
+				$content = $this->api->get_readme();
+				if ( ! is_wp_error( $content ) && ! empty( $content ) ) {
+					$meta = $this->parse_requirements_from_markdown( $content );
+
+					foreach ( array( 'tested', 'requires', 'requires_php' ) as $field ) {
+						if ( ! empty( $meta[$field] ) ) {
+							$this->latest_release->{$field} = $meta[ $field ];
 						}
 					}
 				}
-
-				$this->save_latest_release_cache( $this->latest_release->get_data() );
-				$this->delete_access_token_error();
 			}
-	    }
+
+			$this->save_latest_release_cache( $this->latest_release->get_data() );
+			$this->delete_access_token_error();
+		}
+	}
+
+	public function plugins_api_data( $result, $action, $args ) {
+		if ( ! empty( $args->slug ) ) {
+			if ( $args->slug == $this->slug ) {
+
+				$this->fetch_latest_release();
+
+				if ( $this->latest_release->available() ) {
+					$this->set_plugin_properties();
+
+					return $this->plugin_api_data();
+				}
+			}
+		}
+
+		return $result;
 	}
 
 	public function transient_update_plugins( $transient ) {
@@ -414,44 +262,23 @@ class Updater {
 
 			$this->fetch_latest_release();
 
-			if ( ! $this->latest_release->available() ) {
-				return $transient;
-			}
+			if ( $this->latest_release->available() ) {
+				$this->set_plugin_properties();
 
-			$this->set_plugin_properties();
-
-			if ( version_compare( $this->latest_release->get_version(), $this->plugin['Version'], 'gt' ) ) {
-				$transient->response[ $this->basename ] = (object) $this->plugin_update_available_response_data();
-
-			} else {
-				// No update response is important to whitelist this plugin for automatic update.
-				$transient->no_update[ $this->basename ] = (object) $this->plugin_no_update_response_data();
+				if ( version_compare( $this->latest_release->get_version(), $this->plugin['Version'], 'gt' ) ) {
+					$transient->response[ $this->basename ] = $this->plugin_update_available_response_data();
+				} else {
+					// No update response is important to enable automatic update.
+					$transient->no_update[ $this->basename ] = $this->plugin_no_update_response_data();
+				}
 			}
 		}
 
 		return $transient;
 	}
 
-	public function plugins_api_data( $result, $action, $args ) {
-		if ( ! empty( $args->slug ) ) {
-
-			if ( $args->slug == $this->slug ) {
-
-				$this->fetch_latest_release();
-
-				if ( ! $this->latest_release->available() ) {
-					return $result;
-				}
-
-				return (object) $this->plugin_api_data();
-			}
-		}
-
-		return $result;
-	}
-
 	private function plugin_no_update_response_data() {
-		return array(
+		return (object) array(
 			'url'         => $this->plugin["PluginURI"],
 			'slug' 	      => $this->slug,
 			'package'     => $this->latest_release->download_url,
@@ -460,21 +287,22 @@ class Updater {
 	}
 
 	private function plugin_update_available_response_data() {
-		return array(
-			'url'          => $this->plugin["PluginURI"],
+		return (object) array(
 			'slug' 	       => $this->slug,
-			'package'      => $this->latest_release->download_url,
+			'plugin' 	   => $this->basename,
 			'new_version'  => $this->latest_release->version,
+			'url'          => $this->plugin["PluginURI"],
+			'package'      => $this->latest_release->download_url,
 			'tested'	   => $this->latest_release->tested,
-			'requires'	   => $this->latest_release->requires,
-			'requires_php' => $this->latest_release->requires_php
+			'requires_php' => $this->latest_release->requires_php,
+			'requires'	   => $this->latest_release->requires
 		);
 	}
 
 	private function plugin_api_data() {
-		return array(
+		return (object) array(
 			'name'				=> $this->plugin["Name"],
-			'slug'				=> $this->basename,
+			'slug'				=> $this->slug,
 			'tested'	        => $this->latest_release->tested,
 			'requires'	        => $this->latest_release->requires,
 			'requires_php'      => $this->latest_release->requires_php,
@@ -549,7 +377,6 @@ class Updater {
 		return trim( $value );
 	}
 
-
 	private function get_changelog() {
 		$content = $this->api->get_changelog();
 
@@ -581,11 +408,6 @@ class Updater {
 			// Replace all h1, h2 with h4
 			$content = preg_replace( '/<(h1|h2|h3)>/', '<h4>', $content );
 			$content = preg_replace( '/<\/(h1|h2|h3)>/', '</h4>', $content );
-
-			// echo '<pre>';
-			// print_r( $content );
-			// echo '</pre>';
-			// exit;
 		}
 
 		return $content;
@@ -606,5 +428,54 @@ class Updater {
 		}
 
 		return $result;
+	}
+
+	/**
+	 * Private repo will need stored access token
+	 */
+	private function is_ready_to_use_updater() {
+		if ( $this->private_repo && empty( $this->access_token ) ) {
+			return false;
+		}
+
+		return true;
+	}
+
+	/**
+	 * Prefix option with owner/option_prefix
+	 */
+	public function prefixed_option( $option ) {
+		return $this->option_prefix . $option;
+	}
+
+	/**
+	 * Prefix option name with plugin slug
+	 */
+	public function prefixed_plugin_option( $option ) {
+		return $this->prefixed_option( "{$option}_{$this->owner}_{$this->repo}" );
+	}
+
+	public function get_access_token_error() {
+		return get_option( $this->prefixed_option( 'github_access_token_error' ) );
+	}
+
+	public function save_access_token_error( $error ) {
+		update_option( $this->prefixed_option( 'github_access_token_error' ), $error );
+	}
+
+	public function delete_access_token_error() {
+		delete_option( $this->prefixed_option( 'github_access_token_error' ) );
+	}
+
+	public function get_latest_release_cache() {
+		return get_transient( $this->prefixed_plugin_option( 'latest_release' ) );
+	}
+
+	public function save_latest_release_cache( $data ) {
+		set_transient( $this->prefixed_plugin_option( 'latest_release' ), $data, $this->cache_period );
+	}
+
+	public function delete_latest_release_cache() {
+		delete_transient( $this->prefixed_plugin_option( 'latest_release' ) );
 	}
 }
