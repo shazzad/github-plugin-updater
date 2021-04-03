@@ -165,7 +165,7 @@ class Updater {
 	 * Filter download request.
 	 */
 	public function http_request_args( $args, $url ) {
-		if ( null !== $args['filename'] && $url === $this->latest_release->get_download_url() ) {
+		if ( null !== $args['filename'] ) {
 			$args = array_merge(
 				$args,
 				array(
