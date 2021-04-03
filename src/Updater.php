@@ -2,9 +2,6 @@
 namespace Shazzad\GithubPlugin;
 
 use WP_Error;
-use Parsedown;
-
-if ( ! class_exists( 'Updater' ) ) :
 
 /**
  * WordPress Plugin Updater From Github Repo
@@ -47,29 +44,34 @@ class Updater {
 	private $repo_path;
 
 	/**
-	 * @var array Github latest release response.
-	 */
-	private $latest_release;
-
-	/**
 	 * @var number Cache period in seconds
 	 */
 	private $cache_period = 60;
 
 	/**
-	 * @var
+	 * @var string Repo owner/organization name.
 	 */
 	private $owner;
 
 	/**
-	 * @var
+	 * @var string Repo owner/organization human name, used for access key settings.
 	 */
 	private $owner_name;
 
 	/**
-	 * @var
+	 * @var string Option prefix to use while storing data on wp options table.
 	 */
 	private $option_prefix;
+
+	/**
+	 * @var object Github latest release.
+	 */
+	private $latest_release;
+
+	/**
+	 * @var object Github Api.
+	 */
+	private $api;
 
 	/**
 	 * Bootstrap updater.
@@ -99,7 +101,7 @@ class Updater {
 			}
 	
 			if ( ! empty( $config['option_prefix'] ) ) {
-				$this->option_prefix = $config['option_prefix'];
+				$this->option_prefix = trim( $config['option_prefix'] );
 			} else {
 				$this->option_prefix = $this->owner . '_';
 			}
@@ -109,6 +111,15 @@ class Updater {
 			// Initialize settings panel for private repo.
 			$this->initialize_settings();
 		}
+
+		$this->api = new Api();
+		$this->api->set_repo_path( $this->repo_path );
+
+		if ( $this->access_token ) {
+			$this->api->set_access_token( $this->access_token );
+		}
+
+		$this->latest_release = new Release();
 
 		// Initialize updater.
 		if ( $this->is_ready_to_use_updater() ) {
@@ -160,6 +171,7 @@ class Updater {
 	public function after_access_token_updated() {
 		$this->delete_access_token_error();
 		$this->delete_latest_release_cache();
+		$this->latest_release->set_data( array() );
 	}
 
 	/**
@@ -316,140 +328,49 @@ class Updater {
 
 	private function fetch_latest_release() {
 		if ( false !== $this->get_latest_release_cache() ) {
-			$this->latest_release = $this->get_latest_release_cache();
+			$this->latest_release->set_data( $this->get_latest_release_cache() );
 			return;
 		}
 
-		if ( null === $this->latest_release ) {
-	        $request_uri = sprintf( 'https://api.github.com/repos/%s/releases?per_page=5', $this->repo_path );
+		if ( ! $this->latest_release->available() ) {
+	        $release_data = $this->api->get_latest_release();
 
-			$args = array();
-	        if ( $this->access_token ) {
-		          $args['headers']['Authorization'] = "token {$this->access_token}";
-	        }
-
-			$response      = wp_remote_get( $request_uri, $args );
-			$body          = wp_remote_retrieve_body( $response );
-			$data          = json_decode( $body, true );
-			$response_code = wp_remote_retrieve_response_code( $response );
-			$error         = '';
-
-			if ( is_wp_error( $body ) ) {
-				$error = $body;
-
-			} elseif ( 200 !== $response_code ) {
-				$error_code = 'api_error';
-
-				if ( 401 === $response_code ) {
-					$error_code = 'invalid_authentication';
-					$error_message = 'Authentication error';
-				} elseif ( isset( $data['message'] ) ) {
-					$error_message = $data['message'];
-				} else {
-					$error_message = sprintf( 'Response code received: %d', $response_code );
-				}
-
-				$error = new WP_Error( $error_code, $error_message, array( 'code' => $response_code ) );
-			}
-
-			if ( ! empty( $error ) ) {
-
-				$this->latest_release = false;
-
+			if ( is_wp_error( $release_data ) ) {
 				$this->save_access_token_error(
 					sprintf(
-						'%s, code: %s, status code: %s.',
-						$error->get_error_message(),
-						$error->get_error_code(),
-						$response_code
+						'%s, code: %s.',
+						$release_data->get_error_message(),
+						$release_data->get_error_code()
 					)
 				);
 
 			} else {
 
-				$this->latest_release = false;
-
-				foreach ( $data as $release ) {
-					if ( ! empty( $release['assets'] ) && count( $release['assets'] ) > 0 ) {
-						$this->latest_release = $this->sanitize_release_data( $release );
-						break;
-					}
-				}
-
-				$this->save_latest_release_cache( $this->latest_release );
+				$this->latest_release = new Release( $release_data );
+				$this->save_latest_release_cache( $release_data );
 				$this->delete_access_token_error();
 			}
 	    }
 	}
 
-	private function sanitize_release_data( $release ) {
-		unset( $release['author'] );
-		foreach ( $release['assets'] as &$asset ) {
-			unset( $asset['uploader'] );
-		}
-
-		return $release;
-	}
-
-	public function get_latest_version_number() {
-		return $this->latest_release['tag_name'];
-	}
-
-	public function get_latest_version_date() {
-		return $this->latest_release['published_at'];
-	}
-
-	public function get_latest_version_changelog() {
-		return str_replace( "\r\n", '<br />', $this->latest_release['body'] );
-	}
-
 	public function get_latest_version_download_url() {
 		if ( $this->access_token ) {
-			return add_query_arg( 'access_token', $this->access_token, $this->latest_release['assets'][0]['url'] );
+			return add_query_arg( 'access_token', $this->access_token, $this->latest_release->get_download_url() );
 		}
 
-		return $this->latest_release['assets'][0]['url'];
+		return $this->latest_release->get_download_url();
 	}
 
-	public function get_latest_version_download_count() {
-		return $this->latest_release['assets'][0]['download_count'];
-	}
-
-	public function get_latest_version_requires() {
-		if ( preg_match( '/Requires:\s([\d\.]+)/i', $this->latest_release['body'], $m ) ) {
-			return $m['1'];
-		}
-
-		return '5.0';
-	}
-
-	public function get_latest_version_tested() {
-		if ( preg_match( '/Tested up to:\s([\d\.]+)/i', $this->latest_release['body'], $m ) ) {
-			return $m['1'];
-		} elseif ( preg_match( '/Tested:\s([\d\.]+)/i', $this->latest_release['body'], $m ) ) {
-			return $m['1'];
-		}
-
-		return '5.0';
-	}
-
-	public function get_latest_version_requires_php() {
-		if ( preg_match( '/Requires Php:\s([\d\.]+)/i', $this->latest_release['body'], $m ) ) {
-			return $m['1'];
-		}
-
-		return '5.6';
-	}
 
 	public function transient_update_plugins( $transient ) {
 		if ( property_exists( $transient, 'checked') && ! empty( $transient->checked ) ) {
 			$this->fetch_latest_release();
 
-			if ( empty( $this->latest_release ) ) {
+			if ( ! $this->latest_release->available() ) {
 				return $transient;
 			}
 
-			if ( version_compare( $this->get_latest_version_number(), $this->plugin['Version'], 'gt' ) ) {
+			if ( version_compare( $this->latest_release->get_version(), $this->plugin['Version'], 'gt' ) ) {
 				$transient->response[ $this->basename ] = (object) $this->plugin_update_available_response_data();
 
 			} else {
@@ -468,7 +389,7 @@ class Updater {
 
 				$this->fetch_latest_release();
 
-				if ( empty( $this->latest_release ) ) {
+				if ( ! $this->latest_release->available() ) {
 					return $result;
 				}
 
@@ -493,16 +414,15 @@ class Updater {
 			'url'          => $this->plugin["PluginURI"],
 			'slug' 	       => current( explode('/', $this->basename ) ),
 			'package'      => $this->get_latest_version_download_url(),
-			'new_version'  => $this->get_latest_version_number(),
-			'requires'	   => $this->get_latest_version_requires(),
-			'tested'	   => $this->get_latest_version_tested(),
-			'requires_php' => $this->get_latest_version_requires_php()
+			'new_version'  => $this->latest_release->get_version(),
+			'requires'	   => $this->latest_release->get_requires(),
+			'tested'	   => $this->latest_release->get_tested(),
+			'requires_php' => $this->latest_release->get_requires_php()
 		);
 	}
 
 	private function plugin_api_data() {
-
-		$description = $this->get_readme( true );
+		$description = $this->api->get_readme( true );
 		if ( is_wp_error( $description ) || empty( $description ) ) {
 			$description = $this->plugin["Description"];
 		}
@@ -510,20 +430,20 @@ class Updater {
 		return array(
 			'name'				=> $this->plugin["Name"],
 			'slug'				=> $this->basename,
-			'requires'			=> $this->get_latest_version_requires(),
-			'tested'			=> $this->get_latest_version_tested(),
-			'requires_php'		=> $this->get_latest_version_requires_php(),
+			'requires'			=> $this->latest_release->get_requires(),
+			'tested'			=> $this->latest_release->get_tested(),
+			'requires_php'		=> $this->latest_release->get_requires_php(),
 			'rating'			=> '',
 			'num_ratings'		=> '',
-			'downloaded'		=> $this->get_latest_version_download_count(),
-			'version'			=> $this->get_latest_version_number(),
+			'downloaded'		=> $this->latest_release->get_download_count(),
+			'version'			=> $this->latest_release->get_version(),
 			'author'			=> sprintf( '<a href="%s">%s</a>', $this->plugin["AuthorURI"], $this->plugin["AuthorName"] ),
-			'last_updated'		=> $this->get_latest_version_date(),
+			'last_updated'		=> $this->latest_release->get_date(),
 			'homepage'			=> $this->plugin["PluginURI"],
 			'short_description' => $this->plugin["Description"],
 			'sections'			=> array(
 				'Description'	=> $description,
-				'changelog'		=> $this->get_latest_version_changelog(),
+				'changelog'		=> $this->latest_release->get_changelog(),
 			),
 			'download_link'		=> $this->get_latest_version_download_url()
 		);
@@ -555,38 +475,4 @@ class Updater {
 
 		return $result;
 	}
-
-	protected function get_readme( $html = false ) {
-		$request_uri = sprintf( 'https://api.github.com/repos/%s/readme', $this->repo_path );
-
-		$args = array();
-		if ( $this->access_token ) {
-			$args['headers']['Authorization'] = "token {$this->access_token}";
-		}
-
-		$args['headers']['Accept'] = 'application/vnd.github.v3.raw';
-
-		$response      = wp_remote_get( $request_uri, $args );
-		$body          = wp_remote_retrieve_body( $response );
-		$response_code = wp_remote_retrieve_response_code( $response );
-
-		if ( 200 !== $response_code ) {
-			return new WP_Error( 'readme_not_found', __( 'Readme not available' ) );
-		}
-
-		if ( $html ) {
-			$parsedown = new Parsedown();
-			$body = $parsedown->text( $body );
-		}
-
-		return $body;
-
-		// $parsedown = new Parsedown();
-		// echo '<pre>';
-		// print_r( $parsedown->text( $body ) );
-		// echo '</pre>';
-		// exit;
-	}
 }
-
-endif;
