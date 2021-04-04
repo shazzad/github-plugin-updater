@@ -147,7 +147,7 @@ class Updater {
 		add_filter( 'pre_set_site_transient_update_plugins', array( $this, 'transient_update_plugins' ) );
 		add_filter( 'plugins_api', array( $this, 'plugins_api_data' ), 10, 3 );
 		add_filter( 'upgrader_post_install', array( $this, 'after_install' ), 10, 3 );
-		add_filter( 'upgrader_pre_download', array( $this, 'upgrader_pre_download' ) );
+		add_filter( 'upgrader_pre_download', array( $this, 'upgrader_pre_download' ), 20 );
 	}
 
 	/**
@@ -156,7 +156,8 @@ class Updater {
 	public function upgrader_pre_download( $reply ) {
 		// Add Accept & Authorization header to http request.
 		// Github won't prompt zip file download without proper Accept header.
-		add_filter( 'http_request_args', array( $this, 'http_request_args' ), 15, 2 );
+		remove_all_filters( 'http_request_args' );
+		add_filter( 'http_request_args', array( $this, 'http_request_args' ), 20, 2 );
 
 		return $reply;
 	}
