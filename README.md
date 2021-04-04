@@ -1,6 +1,8 @@
 # Github Plugin Updater
 Helper library to implement wordpress plugin updates from github repository.
 
+This implmenetation support both public and private repository.
+
 ## Usage
 
 ### Step 1:
