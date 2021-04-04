@@ -1,7 +1,7 @@
 # Github Plugin Updater
 Helper library to implement wordpress plugin updates from github repository.
 
-This implmenetation support both public and private repository.
+**This implmenetation support both public and private repository.**
 
 ## Usage
 
@@ -30,13 +30,13 @@ Create a `CHANGELOG.md` file in you repo. Add change history with each version n
 Add this repository in your composer.json file.
 ```
 "repositories": [
-	{
-		"type": "vcs",
-		"url": "https://github.com/shazzad/github-plugin-updater"
-	}
+    {
+        "type": "vcs",
+        "url": "https://github.com/shazzad/github-plugin-updater"
+    }
 ],
 "require": {
-	"shazzad/github-plugin-updater": "dev-main"
+    "shazzad/github-plugin-updater": "dev-main"
 }
 ```
 
@@ -48,17 +48,17 @@ Add following code at the bottom of your plugin's main file.
 ```php
 if ( class_exists( '\Shazzad\GithubPlugin\Updater' ) ) {
      new \Shazzad\GithubPlugin\Updater( 
-		array(
-			'file'         => __FILE__,
-			// Name of the repo owner/organization
-			'owner'        => 'shazzad', 
-			// Repository name
-			'repo'         => 'w4-loggable',
-			// Set true if private repo
-			'private_repo' => true,
-			// Owner name is used on api key settings
-			'owner_name'   => 'Shazzad'
+        array(
+            'file'         => __FILE__,
+            // Name of the repo owner/organization
+            'owner'        => 'shazzad', 
+            // Repository name
+            'repo'         => 'w4-loggable',
+            // Set true if private repo
+            'private_repo' => true,
+            // Owner name is used on api key settings
+            'owner_name'   => 'Shazzad'
         )
-	);
+    );
 }
 ```
