@@ -156,8 +156,20 @@ class Updater {
 	public function upgrader_pre_download( $reply ) {
 		// Add Accept & Authorization header to http request.
 		// Github won't prompt zip file download without proper Accept header.
-		remove_all_filters( 'http_request_args' );
-		add_filter( 'http_request_args', array( $this, 'http_request_args' ), 20, 2 );
+
+		// Remove GithubUpdater plugin hooks.
+		global $wp_filter;
+		if ( isset( $wp_filter['http_request_args'], $wp_filter['http_request_args']->callbacks, $wp_filter['http_request_args']->callbacks[15] ) ) {
+			unset( $wp_filter['http_request_args']->callbacks[15] );
+		}
+
+		if ( ! has_filter( 'http_request_args', array( $this, 'http_request_args' ) ) ) {
+
+			$this->set_plugin_properties();
+			$this->fetch_latest_release();
+
+			add_filter( 'http_request_args', array( $this, 'http_request_args' ), 30, 2 );
+		}
 
 		return $reply;
 	}
@@ -166,18 +178,15 @@ class Updater {
 	 * Filter download request.
 	 */
 	public function http_request_args( $args, $url ) {
-		if ( null !== $args['filename'] ) {
-			$args = array_merge(
-				$args,
-				array(
-					"headers" => array(
-						"Accept"        => "application/octet-stream",
-						"Authorization" => "token {$this->access_token}"
-					)
-				)
-			);
+		if ( null !== $args['filename'] && $url === $this->latest_release->download_url ) {
+			if ( ! isset( $args['headers'] ) ) {
+				$args['headers'] = array();
+			}
+			$args['headers']['Accept'] = 'application/octet-stream';
 
-			remove_filter( 'http_request_args', array( $this, 'http_request_args' ), 15, 2 );
+			if ( $this->access_token ) {
+				$args['headers']['Authorization'] = "token {$this->access_token}";
+			}
 		}
 
 		return $args;
