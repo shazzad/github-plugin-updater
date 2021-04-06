@@ -147,7 +147,7 @@ class Updater {
 		add_filter( 'pre_set_site_transient_update_plugins', array( $this, 'transient_update_plugins' ) );
 		add_filter( 'plugins_api', array( $this, 'plugins_api_data' ), 10, 3 );
 		add_filter( 'upgrader_post_install', array( $this, 'after_install' ), 10, 3 );
-		add_filter( 'upgrader_pre_download', array( $this, 'upgrader_pre_download' ), 20 );
+		add_filter( 'upgrader_pre_download', array( $this, 'upgrader_pre_download' ) );
 	}
 
 	/**
@@ -157,18 +157,12 @@ class Updater {
 		// Add Accept & Authorization header to http request.
 		// Github won't prompt zip file download without proper Accept header.
 
-		// Remove GithubUpdater plugin hooks.
-		global $wp_filter;
-		if ( isset( $wp_filter['http_request_args'], $wp_filter['http_request_args']->callbacks, $wp_filter['http_request_args']->callbacks[15] ) ) {
-			unset( $wp_filter['http_request_args']->callbacks[15] );
-		}
-
 		if ( ! has_filter( 'http_request_args', array( $this, 'http_request_args' ) ) ) {
 
 			$this->set_plugin_properties();
 			$this->fetch_latest_release();
 
-			add_filter( 'http_request_args', array( $this, 'http_request_args' ), 30, 2 );
+			add_filter( 'http_request_args', array( $this, 'http_request_args' ), 12, 2 );
 		}
 
 		return $reply;
@@ -179,6 +173,12 @@ class Updater {
 	 */
 	public function http_request_args( $args, $url ) {
 		if ( null !== $args['filename'] && $url === $this->latest_release->download_url ) {
+			// Remove GithubUpdater plugin hooks.
+			global $wp_filter;
+			if ( isset( $wp_filter['http_request_args'], $wp_filter['http_request_args']->callbacks, $wp_filter['http_request_args']->callbacks[15] ) ) {
+				unset( $wp_filter['http_request_args']->callbacks[15] );
+			}
+
 			if ( ! isset( $args['headers'] ) ) {
 				$args['headers'] = array();
 			}
