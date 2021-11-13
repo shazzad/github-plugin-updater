@@ -232,13 +232,16 @@ class Updater {
 
 			$this->latest_release->parse_data( $release_data );
 
-			if ( ! $this->latest_release->requires || $this->latest_release->requires_php || $this->latest_release->tested ) {
+			if ( ! $this->latest_release->requires 
+				|| ! $this->latest_release->requires_php 
+				|| ! $this->latest_release->tested ) {
 				$content = $this->api->get_readme();
+
 				if ( ! is_wp_error( $content ) && ! empty( $content ) ) {
 					$meta = $this->parse_requirements_from_markdown( $content );
 
 					foreach ( array( 'tested', 'requires', 'requires_php' ) as $field ) {
-						if ( ! empty( $meta[$field] ) ) {
+						if ( ! empty( $meta[$field] ) && empty( $this->latest_release->{$field} ) ) {
 							$this->latest_release->{$field} = $meta[ $field ];
 						}
 					}

@@ -6,12 +6,12 @@ Helper library to implement wordpress plugin updates from github repository.
 ## Usage
 
 ### Step 1:
-Add a header (1,2,3) block named `Requirements` to your repository readme.md file.
+Add a header (1,2,3) block named `Requirements` to your repository `README.md` file.
 ```
 ### Requirements
 * WordPress: 5.0
 * PHP: 5.7
-* Tested: 5.7
+* Tested: 5.8.2
 ```
 
 ### Step 2:
@@ -53,7 +53,7 @@ if ( class_exists( '\Shazzad\GithubPlugin\Updater' ) ) {
             // Name of the repo owner/organization
             'owner'        => 'shazzad', 
             // Repository name
-            'repo'         => 'w4-loggable',
+            'repo'         => 'wp-logs',
             // Set true if private repo
             'private_repo' => true,
             // Owner name is used on api key settings
