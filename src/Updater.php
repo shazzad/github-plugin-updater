@@ -292,10 +292,11 @@ class Updater {
 
 	private function plugin_no_update_response_data() {
 		return (object) array(
-			'url'         => $this->plugin["PluginURI"],
 			'slug' 	      => $this->slug,
+			'plugin' 	  => $this->basename,
+			'new_version' => $this->plugin["Version"],
+			'url'         => $this->plugin["PluginURI"],
 			'package'     => $this->latest_release->download_url,
-			'new_version' => $this->plugin["Version"]
 		);
 	}
 
@@ -308,7 +309,7 @@ class Updater {
 			'package'      => $this->latest_release->download_url,
 			'tested'	   => $this->latest_release->tested,
 			'requires_php' => $this->latest_release->requires_php,
-			'requires'	   => $this->latest_release->requires
+			'requires'	   => $this->latest_release->requires,
 		);
 	}
 
