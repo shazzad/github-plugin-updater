@@ -9,9 +9,9 @@ Helper library to implement wordpress plugin updates from github repository.
 Add a header (1,2,3) block named `Requirements` to your repository `README.md` file.
 ```
 ### Requirements
-* WordPress: 5.0
-* PHP: 5.7
-* Tested: 5.8.2
+* WordPress: 6.0.1
+* PHP: 7.4
+* Tested: 6.0.2
 ```
 
 ### Step 2:
