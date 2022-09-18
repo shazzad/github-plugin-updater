@@ -7,7 +7,7 @@ Helper library to implement wordpress plugin updates from github repository.
 
 ### Step 1:
 Add a header (1,2,3) block named `Requirements` to your repository `README.md` file.
-```
+```md
 ### Requirements
 * WordPress: 6.0.1
 * PHP: 7.4
@@ -16,7 +16,7 @@ Add a header (1,2,3) block named `Requirements` to your repository `README.md` f
 
 ### Step 2:
 Create a `CHANGELOG.md` file in you repo. Add change history with each version number.
-```
+```md
 #### 1.0.2 2021-04-03
 * changed admin sliders default orderby to name.
 * removed unused script file.
@@ -28,7 +28,7 @@ Create a `CHANGELOG.md` file in you repo. Add change history with each version n
 
 ### Step 3:
 Add this repository in your composer.json file.
-```
+```json
 "repositories": [
     {
         "type": "vcs",
