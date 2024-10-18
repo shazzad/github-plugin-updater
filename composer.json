@@ -1,5 +1,6 @@
 {
 	"name": "shazzad/github-plugin-updater",
+	"license": "MIT",
 	"description": "Helper library to implement wordpress plugin update from github repo.",
 	"autoload": {
 		"psr-4": {

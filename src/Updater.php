@@ -110,7 +110,7 @@ class Updater {
 			} else {
 				$this->owner_name = strtoupper( $this->owner );
 			}
-	
+
 			if ( ! empty( $config['option_prefix'] ) ) {
 				$this->option_prefix = trim( $config['option_prefix'] );
 			} else {
@@ -197,10 +197,10 @@ class Updater {
 	 */
 	public function set_plugin_properties() {
 		if ( is_null( $this->plugin ) ) {
-			$this->plugin	= get_plugin_data( $this->file );
+			$this->plugin   = get_plugin_data( $this->file );
 			$this->basename = plugin_basename( $this->file );
-			$this->slug     = current( explode( '/' , $this->basename ) );
-			$this->active	= is_plugin_active( $this->basename );
+			$this->slug     = current( explode( '/', $this->basename ) );
+			$this->active   = is_plugin_active( $this->basename );
 		}
 	}
 
@@ -232,8 +232,8 @@ class Updater {
 
 			$this->latest_release->parse_data( $release_data );
 
-			if ( ! $this->latest_release->requires 
-				|| ! $this->latest_release->requires_php 
+			if ( ! $this->latest_release->requires
+				|| ! $this->latest_release->requires_php
 				|| ! $this->latest_release->tested ) {
 				$content = $this->api->get_readme();
 
@@ -241,7 +241,7 @@ class Updater {
 					$meta = $this->parse_requirements_from_markdown( $content );
 
 					foreach ( array( 'tested', 'requires', 'requires_php' ) as $field ) {
-						if ( ! empty( $meta[$field] ) && empty( $this->latest_release->{$field} ) ) {
+						if ( ! empty( $meta[ $field ] ) && empty( $this->latest_release->{$field} ) ) {
 							$this->latest_release->{$field} = $meta[ $field ];
 						}
 					}
@@ -271,7 +271,7 @@ class Updater {
 	}
 
 	public function transient_update_plugins( $transient ) {
-		if ( property_exists( $transient, 'checked') && ! empty( $transient->checked ) ) {
+		if ( property_exists( $transient, 'checked' ) && ! empty( $transient->checked ) ) {
 
 			$this->fetch_latest_release();
 
@@ -292,8 +292,8 @@ class Updater {
 
 	private function plugin_no_update_response_data() {
 		return (object) array(
-			'slug' 	      => $this->slug,
-			'plugin' 	  => $this->basename,
+			'slug'        => $this->slug,
+			'plugin'      => $this->basename,
 			'new_version' => $this->plugin["Version"],
 			'url'         => $this->plugin["PluginURI"],
 			'package'     => $this->latest_release->download_url,
@@ -302,48 +302,48 @@ class Updater {
 
 	private function plugin_update_available_response_data() {
 		return (object) array(
-			'slug' 	       => $this->slug,
-			'plugin' 	   => $this->basename,
+			'slug'         => $this->slug,
+			'plugin'       => $this->basename,
 			'new_version'  => $this->latest_release->version,
 			'url'          => $this->plugin["PluginURI"],
 			'package'      => $this->latest_release->download_url,
-			'tested'	   => $this->latest_release->tested,
+			'tested'       => $this->latest_release->tested,
 			'requires_php' => $this->latest_release->requires_php,
-			'requires'	   => $this->latest_release->requires,
+			'requires'     => $this->latest_release->requires,
 		);
 	}
 
 	private function plugin_api_data() {
 		return (object) array(
-			'name'				=> $this->plugin["Name"],
-			'slug'				=> $this->slug,
-			'tested'	        => $this->latest_release->tested,
-			'requires'	        => $this->latest_release->requires,
+			'name'              => $this->plugin["Name"],
+			'slug'              => $this->slug,
+			'tested'            => $this->latest_release->tested,
+			'requires'          => $this->latest_release->requires,
 			'requires_php'      => $this->latest_release->requires_php,
-			'rating'			=> '',
-			'num_ratings'		=> '',
-			'downloaded'		=> $this->latest_release->download_count,
-			'version'			=> $this->latest_release->version,
-			'author'			=> sprintf( 
-				'<a href="%s">%s</a>', 
-				$this->plugin["AuthorURI"], 
+			'rating'            => '',
+			'num_ratings'       => '',
+			'downloaded'        => $this->latest_release->download_count,
+			'version'           => $this->latest_release->version,
+			'author'            => sprintf(
+				'<a href="%s">%s</a>',
+				$this->plugin["AuthorURI"],
 				$this->plugin["AuthorName"]
 			),
-			'last_updated'		=> $this->latest_release->get_date(),
-			'homepage'			=> $this->plugin["PluginURI"],
+			'last_updated'      => $this->latest_release->get_date(),
+			'homepage'          => $this->plugin["PluginURI"],
 			'short_description' => $this->plugin["Description"],
-			'sections'			=> array(
-				'description'	=> $this->get_description(),
-				'changelog'		=> $this->get_changelog(),
+			'sections'          => array(
+				'description' => $this->get_description(),
+				'changelog'   => $this->get_changelog(),
 			),
-			'download_link'		=> $this->latest_release->download_url
+			'download_link'     => $this->latest_release->download_url
 		);
 	}
 
 	private function parse_requirements_from_markdown( $content ) {
 		$lines = explode( "\n", $content );
 
-		$meta = array();
+		$meta       = array();
 		$meta_found = false;
 
 		foreach ( $lines as $line ) {
@@ -403,7 +403,7 @@ class Updater {
 
 		} else {
 			$parsedown = new Parsedown();
-			$content = $parsedown->text( $content );
+			$content   = $parsedown->text( $content );
 		}
 
 		return $content;
@@ -417,7 +417,7 @@ class Updater {
 
 		} else {
 			$parsedown = new Parsedown();
-			$content = $parsedown->text( $content );
+			$content   = $parsedown->text( $content );
 
 			// Replace all h1, h2 with h4
 			$content = preg_replace( '/<(h1|h2|h3)>/', '<h4>', $content );

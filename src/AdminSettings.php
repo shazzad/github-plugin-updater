@@ -26,7 +26,7 @@ class AdminSettings {
 	private function initialize_settings() {
 		// Delete access token error after option is updated.
 		add_action( 'update_option_' . $this->updater->prefixed_option( 'github_access_token' ), array( $this, 'after_access_token_updated' ) );
-		add_action( 'admin_init', array( $this , 'register_setting_field' ) );
+		add_action( 'admin_init', array( $this, 'register_setting_field' ) );
 		add_action( 'admin_notices', array( $this, 'access_token_admin_notices' ) );
 	}
 
@@ -43,15 +43,15 @@ class AdminSettings {
 	 * Register settings field for access token.
 	 */
 	public function register_setting_field() {
-		register_setting( 
+		register_setting(
 			'general',
 			$this->updater->prefixed_option( 'github_access_token' ),
-			'esc_attr'
+			[ 'sanitize_callback' => 'esc_attr' ]
 		);
 
 		add_settings_field(
 			$this->updater->prefixed_option( 'github_access_token_id' ),
-			'<label for="'. $this->updater->prefixed_option( 'github_access_token_id' ) .'">' . sprintf( __( '%s\'s Github Access Token' ), $this->updater->owner_name ) . '</label>',
+			'<label for="' . $this->updater->prefixed_option( 'github_access_token_id' ) . '">' . sprintf( __( '%s\'s Github Access Token' ), $this->updater->owner_name ) . '</label>',
 			array( $this, 'fields_html' ),
 			'general'
 		);
@@ -79,14 +79,14 @@ class AdminSettings {
 	 * HTML for extra settings
 	 */
 	public function fields_html() {
-		printf( 
+		printf(
 			'<input class="regular-text" type="text" id="%s" name="%s" value="%s" />',
 			$this->updater->prefixed_option( 'github_access_token_id' ),
 			$this->updater->prefixed_option( 'github_access_token' ),
 			esc_attr( $this->updater->access_token )
 		);
 
-		echo '<p class="description">' . sprintf( 
+		echo '<p class="description">' . sprintf(
 			__( 'This token will be used to fetch update for %s\'s plugins from github' ),
 			$this->updater->owner_name
 		) . '</p>';
@@ -112,8 +112,8 @@ class AdminSettings {
 		if ( empty( $this->updater->access_token ) ) {
 			echo "<div class='notice notice-error is-dismissible'> \n";
 			echo "<p><strong>";
-			printf( 
-				__( '%s\'s <a href="%s#%s">github access token</a> is required to receive automatic plugin updates.' ), 
+			printf(
+				__( '%s\'s <a href="%s#%s">github access token</a> is required to receive automatic plugin updates.' ),
 				$this->updater->owner_name,
 				admin_url( 'options-general.php' ),
 				$this->updater->prefixed_option( 'github_access_token_id' )
@@ -125,9 +125,9 @@ class AdminSettings {
 		}
 
 		if ( $this->updater->get_access_token_error() ) {
-			echo "<div id='". $this->updater->prefixed_option( 'github_access_token' ) ."' class='notice notice-error is-dismissible'> \n";
-			echo "<p>" . sprintf( 
-				__( '<strong>%s\'s github access token error:</strong> %s <a href="%s#%s">update here</a>' ), 
+			echo "<div id='" . $this->updater->prefixed_option( 'github_access_token' ) . "' class='notice notice-error is-dismissible'> \n";
+			echo "<p>" . sprintf(
+				__( '<strong>%s\'s github access token error:</strong> %s <a href="%s#%s">update here</a>' ),
 				$this->updater->owner_name,
 				$this->updater->get_access_token_error(),
 				admin_url( 'options-general.php' ),

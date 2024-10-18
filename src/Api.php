@@ -33,7 +33,7 @@ class Api {
 	}
 
 	public function get_latest_release() {
-		$request_uri = self::GITHUB_API_URL . '/repos/' . $this->repo_path .'/releases?per_page=5';
+		$request_uri = self::GITHUB_API_URL . '/repos/' . $this->repo_path . '/releases?per_page=5';
 
 		$args = array();
 		if ( $this->access_token ) {
@@ -53,7 +53,7 @@ class Api {
 			$error_code = 'api_error';
 
 			if ( 401 === $response_code ) {
-				$error_code = 'invalid_authentication';
+				$error_code    = 'invalid_authentication';
 				$error_message = __( 'Authentication error' );
 			} elseif ( isset( $data['message'] ) ) {
 				$error_message = $data['message'];
@@ -78,7 +78,7 @@ class Api {
 	}
 
 	public function get_readme( $html = false ) {
-		$request_uri = self::GITHUB_API_URL . '/repos/' . $this->repo_path .'/readme';
+		$request_uri = self::GITHUB_API_URL . '/repos/' . $this->repo_path . '/readme';
 
 		$args = array(
 			'headers' => array(
@@ -100,7 +100,7 @@ class Api {
 
 		if ( $html ) {
 			$parsedown = new Parsedown();
-			$body = $parsedown->text( $body );
+			$body      = $parsedown->text( $body );
 		}
 
 		return $body;
@@ -113,7 +113,7 @@ class Api {
 	}
 
 	public function get_changelog() {
-		$request_uri = self::GITHUB_API_URL . '/repos/' . $this->repo_path .'/contents/' . self::CHANGELOG_FILE_NAME;
+		$request_uri = self::GITHUB_API_URL . '/repos/' . $this->repo_path . '/contents/' . self::CHANGELOG_FILE_NAME;
 
 		$args = array(
 			'headers' => array(
