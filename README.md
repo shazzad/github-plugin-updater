@@ -39,12 +39,6 @@ Create a `CHANGELOG.md` file in you repo. Add change history with each version n
 Add this repository in your composer.json file.
 
 ```json
-"repositories": [
-    {
-        "type": "vcs",
-        "url": "https://github.com/shazzad/github-plugin-updater"
-    }
-],
 "require": {
     "shazzad/github-plugin-updater": "dev-main"
 }
