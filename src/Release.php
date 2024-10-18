@@ -62,13 +62,13 @@ class Release {
 			} elseif ( preg_match( '/Tested:\s([\d\.]+)/i', $data['body'], $m ) ) {
 				$this->data['tested'] = $m['1'];
 			}
-	
+
 			if ( preg_match( '/Requires:\s([\d\.]+)/i', $data['body'], $m ) ) {
 				$this->data['requires'] = $m['1'];
 			} elseif ( preg_match( '/WordPress:\s([\d\.]+)/i', $data['body'], $m ) ) {
 				$this->data['requires'] = $m['1'];
 			}
-	
+
 			if ( preg_match( '/Requires Php:\s([\d\.]+)/i', $data['body'], $m ) ) {
 				$this->data['requires_php'] = $m['1'];
 			} elseif ( preg_match( '/PHP:\s([\d\.]+)/i', $data['body'], $m ) ) {
@@ -104,7 +104,7 @@ class Release {
 		} elseif ( 'set_' === substr( $name, 0, 4 ) ) {
 			$name = substr( $name, 4 );
 			if ( array_key_exists( $name, $this->data ) ) {
-				$this->data[ $name ] = $value;
+				$this->data[ $name ] = $arguments[0];
 			}
 		}
 	}
