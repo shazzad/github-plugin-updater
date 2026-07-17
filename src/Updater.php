@@ -271,6 +271,13 @@ class Updater {
 	}
 
 	public function transient_update_plugins( $transient ) {
+		// The filter can receive false/null, e.g. from a
+		// set_site_transient( 'update_plugins', null ) force-refresh;
+		// property_exists() fatals on non-object input on PHP 8.
+		if ( ! is_object( $transient ) ) {
+			return $transient;
+		}
+
 		if ( property_exists( $transient, 'checked' ) && ! empty( $transient->checked ) ) {
 
 			$this->fetch_latest_release();
