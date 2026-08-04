@@ -250,6 +250,40 @@ class Updater {
 
 			$this->save_latest_release_cache( $this->latest_release->get_data() );
 			$this->delete_access_token_error();
+
+			if ( ! $this->latest_release->available() ) {
+				$this->log(
+					sprintf(
+						'Release fetched for %s but is unusable (missing version and/or download_url). Does the latest release have an attached asset?',
+						$this->repo_path
+					)
+				);
+			} else {
+				$missing = $this->latest_release->missing_meta();
+
+				if ( ! empty( $missing ) ) {
+					$this->log(
+						sprintf(
+							'Release %s of %s is missing optional metadata: %s. Add them to the release notes or the README "Requirements" section.',
+							$this->latest_release->get_version(),
+							$this->repo_path,
+							implode( ', ', $missing )
+						)
+					);
+				}
+			}
+		}
+	}
+
+	/**
+	 * Write a diagnostic message to the debug log.
+	 *
+	 * Update checks run unattended, so a silent failure is invisible.
+	 * Only logs when WP_DEBUG is on.
+	 */
+	private function log( $message ) {
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+			error_log( '[github-plugin-updater] ' . $message );
 		}
 	}
 
@@ -354,8 +388,10 @@ class Updater {
 		$meta_found = false;
 
 		foreach ( $lines as $line ) {
+			// Tolerate CRLF line endings and trailing whitespace.
+			$line = rtrim( $line, "\r\n\t " );
 
-			if ( '# Requirements' === $line || '## Requirements' === $line || '### Requirements' === $line ) {
+			if ( preg_match( '/^#{1,6}\s+requirements\s*$/i', $line ) ) {
 				$meta_found = true;
 				continue;
 			}
@@ -380,7 +416,8 @@ class Updater {
 	}
 
 	private function sanitize_meta_name( $name ) {
-		$name = ltrim( $name, '*' );
+		// Strip markdown list markers ("* WordPress", "- WordPress", "+ WordPress").
+		$name = ltrim( $name, "*-+ \t" );
 		$name = strtolower( $name );
 		$name = trim( $name );
 		$name = preg_replace( '/[^a-z0-9-.]/', '_', $name );

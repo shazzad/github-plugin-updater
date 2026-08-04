@@ -86,12 +86,31 @@ class Release {
 
 	/**
 	 * Check if release data is available.
-	 * 
-	 * There's total 6 requied fields, all of
-	 * them must be available.
+	 *
+	 * Only version & download_url are truly required to offer an update.
+	 * The remaining fields (tested, requires, requires_php, download_count,
+	 * body) are presentation metadata - a missing one must never hide an
+	 * available update.
 	 */
 	public function available() {
-		return count( array_filter( $this->data ) ) > 5;
+		return ! empty( $this->data['version'] ) && ! empty( $this->data['download_url'] );
+	}
+
+	/**
+	 * Names of the optional metadata fields that could not be resolved.
+	 *
+	 * @return array
+	 */
+	public function missing_meta() {
+		$missing = array();
+
+		foreach ( array( 'tested', 'requires', 'requires_php' ) as $field ) {
+			if ( empty( $this->data[ $field ] ) ) {
+				$missing[] = $field;
+			}
+		}
+
+		return $missing;
 	}
 
 	/**
