@@ -148,6 +148,47 @@ class Updater {
 		add_filter( 'plugins_api', array( $this, 'plugins_api_data' ), 10, 3 );
 		add_filter( 'upgrader_post_install', array( $this, 'after_install' ), 10, 3 );
 		add_filter( 'upgrader_pre_download', array( $this, 'upgrader_pre_download' ) );
+		add_action( 'upgrader_process_complete', array( $this, 'upgrader_process_complete' ), 20, 2 );
+	}
+
+	/**
+	 * Drop cached state once this plugin has been updated.
+	 *
+	 * An admin-initiated update replaces the plugin files and rebuilds the
+	 * update transient inside a single request. Both the memoised plugin
+	 * header and the cached release payload still describe the version that
+	 * was installed when the request started, so without this the updater
+	 * compares the new release against the *old* version, decides an update
+	 * is available, and re-arms the nag it just satisfied.
+	 *
+	 * @param object $upgrader   Upgrader instance.
+	 * @param array  $hook_extra Extra arguments describing the upgrade.
+	 * @return void
+	 */
+	public function upgrader_process_complete( $upgrader, $hook_extra ) {
+		if ( empty( $hook_extra['type'] ) || 'plugin' !== $hook_extra['type'] ) {
+			return;
+		}
+
+		$this->set_plugin_properties();
+
+		$updated = array();
+
+		if ( ! empty( $hook_extra['plugins'] ) && is_array( $hook_extra['plugins'] ) ) {
+			$updated = $hook_extra['plugins'];
+		} elseif ( ! empty( $hook_extra['plugin'] ) ) {
+			$updated = array( $hook_extra['plugin'] );
+		}
+
+		if ( ! in_array( $this->basename, $updated, true ) ) {
+			return;
+		}
+
+		// Re-read the plugin header on next use, and re-query the release so a
+		// cached payload cannot resurrect the update notice.
+		$this->plugin         = null;
+		$this->latest_release = new Release();
+		$this->delete_latest_release_cache();
 	}
 
 	/**
@@ -319,11 +360,27 @@ class Updater {
 			if ( $this->latest_release->available() ) {
 				$this->set_plugin_properties();
 
+				if ( ! isset( $transient->response ) ) {
+					$transient->response = array();
+				}
+
+				if ( ! isset( $transient->no_update ) ) {
+					$transient->no_update = array();
+				}
+
 				if ( version_compare( $this->latest_release->get_version(), $this->plugin['Version'], 'gt' ) ) {
 					$transient->response[ $this->basename ] = $this->plugin_update_available_response_data();
+					unset( $transient->no_update[ $this->basename ] );
 				} else {
 					// No update response is important to enable automatic update.
 					$transient->no_update[ $this->basename ] = $this->plugin_no_update_response_data();
+
+					// Not every caller rebuilds the transient from scratch -
+					// set_site_transient( 'update_plugins', $existing ) runs this
+					// filter over data that may still carry a stale response entry
+					// from before the plugin was updated. Leaving it there keeps
+					// WordPress nagging to update to the version already installed.
+					unset( $transient->response[ $this->basename ] );
 				}
 			}
 		}
