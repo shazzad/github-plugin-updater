@@ -148,18 +148,22 @@ class Updater {
 		add_filter( 'plugins_api', array( $this, 'plugins_api_data' ), 10, 3 );
 		add_filter( 'upgrader_post_install', array( $this, 'after_install' ), 10, 3 );
 		add_filter( 'upgrader_pre_download', array( $this, 'upgrader_pre_download' ) );
-		add_action( 'upgrader_process_complete', array( $this, 'upgrader_process_complete' ), 20, 2 );
+		// Priority 5: must run before core rebuilds the update_plugins
+		// transient on this same action (wp_update_plugins, priority 10),
+		// or the rebuild compares the release against the stale memoised
+		// header and re-arms the update nag it just satisfied.
+		add_action( 'upgrader_process_complete', array( $this, 'upgrader_process_complete' ), 5, 2 );
 	}
 
 	/**
 	 * Drop cached state once this plugin has been updated.
 	 *
 	 * An admin-initiated update replaces the plugin files and rebuilds the
-	 * update transient inside a single request. Both the memoised plugin
-	 * header and the cached release payload still describe the version that
-	 * was installed when the request started, so without this the updater
-	 * compares the new release against the *old* version, decides an update
-	 * is available, and re-arms the nag it just satisfied.
+	 * update transient inside a single request. The memoised plugin header
+	 * still describes the version that was installed when the request
+	 * started, so without this the updater compares the release against the
+	 * *old* version, decides an update is available, and re-arms the nag it
+	 * just satisfied.
 	 *
 	 * @param object $upgrader   Upgrader instance.
 	 * @param array  $hook_extra Extra arguments describing the upgrade.
@@ -184,11 +188,12 @@ class Updater {
 			return;
 		}
 
-		// Re-read the plugin header on next use, and re-query the release so a
-		// cached payload cannot resurrect the update notice.
-		$this->plugin         = null;
-		$this->latest_release = new Release();
-		$this->delete_latest_release_cache();
+		// Re-read the plugin header on next use. The release state is kept:
+		// it describes the release that was just installed, so it is still
+		// the correct "latest" and core's transient rebuild (priority 10 on
+		// this action) needs it immediately - clearing it would only force a
+		// redundant GitHub API call inside the same request.
+		$this->plugin = null;
 	}
 
 	/**
@@ -533,6 +538,15 @@ class Updater {
 	 */
 	public function after_install( $response, $hook_extra, $result ) {
 		global $wp_filesystem;
+
+		// Core fires this filter for every plugin/theme install and update.
+		// Only act when the operation targets this plugin: single and bulk
+		// plugin updates pass the basename in 'plugin'; installs and themes
+		// never do. Compare against plugin_basename() directly - the
+		// memoised properties are not populated on cron/auto-update requests.
+		if ( empty( $hook_extra['plugin'] ) || plugin_basename( $this->file ) !== $hook_extra['plugin'] ) {
+			return $response;
+		}
 
 		$install_directory = plugin_dir_path( $this->file );
 		$wp_filesystem->move( $result['destination'], $install_directory );
